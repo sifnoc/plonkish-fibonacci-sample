@@ -1,0 +1,15 @@
+[workspace]
+[package]
+name = "halo2-fibonacci"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gen-keys"
+path = "src/bin/gen_keys.rs"
+
+[dependencies]
+halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.2" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20", features = [
+    "dev-graph",
+] }
