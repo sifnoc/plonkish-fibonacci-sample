@@ -8,8 +8,11 @@ edition = "2021"
 name = "gen-keys"
 path = "src/bin/gen_keys.rs"
 
+[features]
+
+dev-graph = ["halo2_proofs/dev-graph", "plotters"]
+
 [dependencies]
 halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.2" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20", features = [
-    "dev-graph",
-] }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20" }
+plotters = {version = "0.3.6", optional = true}
