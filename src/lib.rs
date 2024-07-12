@@ -36,7 +36,7 @@ pub fn prove(
     let srs = io::read_srs_path(Path::new(&srs_key_path));
 
     let proving_key =
-        io::read_pk::<FibonacciCircuit<Fr>>(Path::new(&proving_key_path));
+        io::read_pk::<FibonacciCircuit<Fr>>(Path::new(&proving_key_path), ());
 
     let (proof, inputs) = generate_halo2_proof(&srs, &proving_key, circuit_inputs)
         .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
@@ -63,7 +63,7 @@ pub fn verify(
     let srs = io::read_srs_path(Path::new(&srs_key_path));
 
     let verifying_key =
-        io::read_vk::<FibonacciCircuit<Fr>>(Path::new(&verifying_key_path));
+        io::read_vk::<FibonacciCircuit<Fr>>(Path::new(&verifying_key_path), ());
 
     let is_valid =
         verify_halo2_proof(&srs, &verifying_key, proof, deserialized_inputs).unwrap();

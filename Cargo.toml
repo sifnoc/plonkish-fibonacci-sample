@@ -14,7 +14,7 @@ dev-graph = ["halo2_proofs/dev-graph", "plotters"]
 
 [dependencies]
 halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.2" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_04_20", features = ["circuit-params"] }
 plotters = {version = "0.3.6", optional = true}
 serde = { version = "1.0.204", features = ["derive"] }
 bincode = "1.3.3"

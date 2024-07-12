@@ -165,10 +165,14 @@ pub struct FibonacciCircuit<F>(PhantomData<F>);
 impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
     type Config = FibonacciConfig;
     type FloorPlanner = SimpleFloorPlanner;
+    type Params = ();
+
     // Circuit without witnesses, called only during key generation
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
+
+    fn params(&self) -> Self::Params {}
 
     // Has the arrangement of columns. Called only during keygen, and will just call chip config most of the time
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
