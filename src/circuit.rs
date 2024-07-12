@@ -1,7 +1,15 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use halo2_proofs::arithmetic::Field;
 use halo2_proofs::{circuit::*, plonk::*, poly::Rotation};
+use halo2_proofs::poly::commitment::ParamsProver;
+use halo2_proofs::poly::kzg::commitment::{KZGCommitmentScheme, ParamsKZG};
+use halo2_proofs::poly::kzg::multiopen::{ProverGWC, VerifierGWC};
+use halo2_proofs::poly::kzg::strategy::SingleStrategy;
+use halo2_proofs::transcript::{Blake2bRead, Blake2bWrite, TranscriptReadBuffer, TranscriptWriterBuffer};
+use halo2curves::bn256::{Bn256, Fr, G1Affine};
+use crate::FibonacciError;
 
 /// Defines the configuration of all the columns, and all of the column definitions
 /// Will be incrementally populated and passed around
@@ -190,6 +198,67 @@ impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
 
         Ok(())
     }
+}
+
+pub(crate) fn generate_halo2_proof(
+    srs: &ParamsKZG<Bn256>,
+    proving_key: &ProvingKey<G1Affine>,
+    inputs: HashMap<String, Vec<Fr>>,
+) -> Result<(Vec<u8>, Vec<Fr>), FibonacciError> {
+    let circuit = FibonacciCircuit::<Fr>::default();
+
+    // Setup starting values of the Fibonacci sequence
+    let a = Fr::from(1); // F[0]
+    let b = Fr::from(1); // F[1]
+
+    // `out` value right now must be 55, but will be replaced with the actual output value
+    let out: Fr = inputs
+        .get("out")
+        .ok_or(FibonacciError(
+            "Failed to get `out` value".to_string(),
+        ))?
+        .get(0)
+        .ok_or(FibonacciError(
+            "Failed to get `out` value".to_string(),
+        ))?
+        .clone();
+
+    let mut transcript = TranscriptWriterBuffer::<_, G1Affine, _>::init(Vec::new());
+
+    let public_input = vec![a, b, out];
+
+    create_proof::<KZGCommitmentScheme<Bn256>, ProverGWC<_>, _, _, Blake2bWrite<_, _, _>, _>(
+        srs,
+        proving_key,
+        &[circuit],
+        vec![vec![public_input.clone().as_slice()].as_slice()].as_slice(),
+        rand::thread_rng(),
+        &mut transcript,
+    )
+    .map_err(|_| FibonacciError("Failed to create the proof".to_string()))?;
+
+    let proof = transcript.finalize();
+
+    Ok((proof, public_input))
+}
+
+pub(crate) fn verify_halo2_proof(
+    srs: &ParamsKZG<Bn256>,
+    verifying_key: &VerifyingKey<G1Affine>,
+    proof: Vec<u8>,
+    inputs: Vec<Fr>,
+) -> Result<bool, FibonacciError> {
+    let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
+    verify_proof::<_, VerifierGWC<_>, _, Blake2bRead<_, _, _>, _>(
+        srs.verifier_params(),
+        verifying_key,
+        SingleStrategy::new(srs),
+        &[&[inputs.as_ref()]],
+        &mut transcript,
+    )
+    .map_err(|_| FibonacciError("Failed to verify the proof".to_string()))?;
+
+    Ok(true)
 }
 
 #[cfg(test)]
