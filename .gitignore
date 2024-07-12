@@ -1,1 +1,4 @@
 /target/
+/out/fibonacci_pk
+/out/fibonacci_srs
+/out/fibonacci_vk
