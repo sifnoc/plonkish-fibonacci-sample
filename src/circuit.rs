@@ -263,15 +263,28 @@ pub(crate) fn verify_halo2_proof(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::marker::PhantomData;
-
     use halo2_proofs::dev::MockProver;
     use halo2_proofs::halo2curves::pasta::Fp;
+    use halo2_proofs::plonk::{keygen_pk, keygen_vk, ProvingKey, VerifyingKey};
+    use halo2_proofs::poly::commitment::ParamsProver;
+    use halo2_proofs::poly::kzg::commitment::ParamsKZG;
+    use halo2curves::bn256::{Bn256, Fr, G1Affine};
+    use once_cell::sync::Lazy;
+    use super::{FibonacciCircuit, generate_halo2_proof, verify_halo2_proof};
 
-    use super::FibonacciCircuit;
+    static KEYS: Lazy<(ParamsKZG<Bn256>, ProvingKey<G1Affine>, VerifyingKey<G1Affine>)> = Lazy::new(|| {
+        let k = 4;
+        let circuit = FibonacciCircuit::<Fr>::default();
+        let srs = ParamsKZG::<Bn256>::new(k);
+        let vk = keygen_vk(&srs, &circuit).expect("keygen_vk should not fail");
+        let pk = keygen_pk(&srs, vk.clone(), &circuit).expect("keygen_pk should not fail");
+        (srs, pk, vk)
+    });
 
     #[test]
-    fn fibonacci_example() {
+    fn fibonacci_circuit_test() {
         let k = 4;
 
         let a = Fp::from(1); // F[0]
@@ -307,5 +320,34 @@ mod tests {
         halo2_proofs::dev::CircuitLayout::default()
             .render(4, &circuit, &root)
             .unwrap();
+    }
+
+        #[test]
+    fn test_generate_halo2_proof() {
+        let mut input = HashMap::new();
+        input.insert("out".to_string(), vec![Fr::from(55)]);
+
+        let (_, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
+        assert_eq!(inputs, vec![Fr::from(1), Fr::from(1), Fr::from(55)]);
+    }
+
+    #[test]
+    fn test_verify_halo2_proof() {
+        let mut input = HashMap::new();
+        input.insert("out".to_string(), vec![Fr::from(55)]);
+
+        let (proof, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
+        let verified = verify_halo2_proof(&KEYS.0, &KEYS.2, proof, inputs).unwrap();
+        assert!(verified);
+    }
+
+    #[test]
+    fn test_bad_proof_not_verified() {
+        let mut input = HashMap::new();
+        input.insert("out".to_string(), vec![Fr::from(56)]);
+
+        let (proof, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
+        let verified = verify_halo2_proof(&KEYS.0, &KEYS.2, proof, inputs).unwrap_or(false);
+        assert!(!verified);
     }
 }
