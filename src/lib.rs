@@ -4,6 +4,7 @@ pub mod io;
 mod serialisation;
 
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt::Display;
 use std::path::Path;
 use halo2curves::bn256::Fr;
@@ -27,7 +28,7 @@ pub fn prove(
     srs_key_path: &str,
     proving_key_path: &str,
     input: HashMap<String, Vec<String>>,
-) -> Result<GenerateProofResult, FibonacciError> {
+) -> Result<GenerateProofResult, Box<dyn Error>> {
     let circuit_inputs = deserialize_circuit_inputs(input).map_err(|e| {
         FibonacciError(format!("Failed to deserialize circuit inputs: {}", e))
     })?;
@@ -55,7 +56,7 @@ pub fn verify(
     verifying_key_path: &str,
     proof: Vec<u8>,
     public_inputs: Vec<u8>,
-) -> Result<bool, FibonacciError> {
+) -> Result<bool, Box<dyn Error>> {
     let deserialized_inputs: Vec<Fr> = bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
         .map_err(|e| FibonacciError(e.to_string()))?.0;
 
