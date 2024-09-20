@@ -5,34 +5,22 @@ use crate::FibonacciError;
 
 use halo2_proofs::{
     circuit::{AssignedCell, Layouter, SimpleFloorPlanner},
-    plonk::{
-        create_proof, verify_proof, Advice, Assignment, Circuit, Column, ConstraintSystem, Error,
-        Expression, Instance, ProvingKey, Selector, VerifyingKey,
-    },
-    poly::{
-        commitment::{Params, ParamsProver},
-        kzg::{
-            commitment::ParamsKZG,
-            multiopen::{ProverSHPLONK, VerifierSHPLONK},
-            strategy::SingleStrategy,
-        },
-        Rotation,
-    },
-    transcript::{Blake2bRead, Blake2bWrite, Keccak256Read, TranscriptReadBuffer, TranscriptWriterBuffer},
+    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Instance, Selector},
+    poly::Rotation,
 };
-use halo2curves::{
-    bn256::{Bn256, G1Affine},
-    ff::Field,
-};
+use halo2curves::{bn256::Bn256, ff::Field};
 
 use plonkish_backend::{
     backend::{
         hyperplonk::{HyperPlonk, HyperPlonkProverParam, HyperPlonkVerifierParam},
-        PlonkishBackend, PlonkishCircuit,
+        PlonkishBackend,
     },
     frontend::halo2::{CircuitExt, Halo2Circuit},
     halo2_curves::bn256::Fr,
-    pcs::{multilinear, univariate::{self, UnivariateKzgParam}},
+    pcs::{
+        multilinear,
+        univariate::{self, UnivariateKzgParam},
+    },
     util::{
         test::std_rng,
         transcript::{InMemoryTranscript, Keccak256Transcript},
@@ -200,14 +188,11 @@ pub struct FibonacciCircuit<F> {
 impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
     type Config = FibonacciConfig;
     type FloorPlanner = SimpleFloorPlanner;
-    // type Params = ();
 
     // Circuit without witnesses, called only during key generation
     fn without_witnesses(&self) -> Self {
         Self::default()
     }
-
-    // fn params(&self) -> Self::Params {}
 
     // Has the arrangement of columns. Called only during keygen, and will just call chip config most of the time
     fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
@@ -250,16 +235,14 @@ impl<F: Field> CircuitExt<F> for FibonacciCircuit<F> {
 }
 
 pub(crate) fn generate_halo2_proof(
-    srs: &ParamsKZG<Bn256>,
+    srs: &UnivariateKzgParam<Bn256>,
     prover_parameters: &HyperPlonkProverParam<Fr, GeminiKzg>,
     inputs: HashMap<String, Vec<Fr>>,
 ) -> Result<(Vec<u8>, Vec<Fr>), FibonacciError> {
     // Retrieve k from SRS file
-    // TODO: check this is proper way to do that or not.
     let k = srs.k();
-    println!("srs.k: {:?}", k);
 
-    // TODO: choose input values fetch from `input` for those a and b
+    // Setup starting values of the Fibonacci sequence
     let a = Fr::from(1); // F[0]
     let b = Fr::from(1); // F[1]
 
@@ -276,26 +259,14 @@ pub(crate) fn generate_halo2_proof(
         public_input: vec![public_input.clone()],
     };
 
-    let circuit_fn = |k| {
-        let circuit =
-            Halo2Circuit::<Fr, FibonacciCircuit<Fr>>::new::<ProvingBackend>(k, circuit.clone());
-        (circuit.circuit_info().unwrap(), circuit)
-    };
-    let (_, circuit) = circuit_fn(k as usize);
-    // let instances = circuit.instances(); // TODO: does not had enough ?
-
-    // let param = ProvingBackend::setup(&circuit_info, std_rng()).unwrap();
-
-    // Generate these from outside of this function
-    // let (prover_parameters, verifier_parameters) =
-    //     ProvingBackend::preprocess(&param, &circuit_info).unwrap();
+    let halo2_circuit = Halo2Circuit::<Fr, FibonacciCircuit<Fr>>::new::<ProvingBackend>(k, circuit);
 
     let proof_transcript = {
         let mut proof_transcript = Keccak256Transcript::new(());
 
         HyperPlonk::prove(
             &prover_parameters,
-            &circuit,
+            &halo2_circuit,
             &mut proof_transcript,
             std_rng(),
         )
@@ -309,45 +280,27 @@ pub(crate) fn generate_halo2_proof(
 }
 
 pub(crate) fn verify_halo2_proof(
-    srs: &UnivariateKzgParam<Bn256>,   
-    // verifying_key: &VerifyingKey<G1Affine>,
+    _srs: &UnivariateKzgParam<Bn256>,
     verifier_parameters: &HyperPlonkVerifierParam<Fr, GeminiKzg>,
     proof: Vec<u8>,
     inputs: Vec<Fr>,
 ) -> Result<bool, FibonacciError> {
-    // let mut transcript = TranscriptReadBuffer::<_, G1Affine, _>::init(proof.as_slice());
-    
-    // TODO: remove .. 
-    // verify_proof::<_, VerifierSHPLONK<_>, _, _, _, false>(
-    //     srs.verifier_params(),
-    //     verifying_key,
-    //     SingleStrategy::new(srs),
-    //     &[&[inputs.as_ref()]],
-    //     &mut transcript,
-    // )
-    // .map_err(|_| FibonacciError("Failed to verify the proof".to_string()))?;
-
-
     let mut transcript;
     let result: Result<(), plonkish_backend::Error> = {
         transcript = Keccak256Transcript::from_proof((), proof.as_slice());
-        ProvingBackend::verify(
-            &verifier_parameters,
-            &[inputs],
-            &mut transcript,
-            std_rng(),
-        )
+        ProvingBackend::verify(&verifier_parameters, &[inputs], &mut transcript, std_rng())
     };
 
-    // TODO: fix this returns
-    println!("verify result: {:?}", result);
-
-    Ok(true)
+    result
+        .map(|_| true)
+        .map_err(|e| FibonacciError(format!("Verifying proof error: {:?}", e)))
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::circuit::verify_halo2_proof;
+    use std::collections::HashMap;
+
+    use crate::circuit::{generate_halo2_proof, verify_halo2_proof};
 
     use super::FibonacciCircuit;
 
@@ -355,22 +308,56 @@ mod tests {
         rngs::{OsRng, StdRng},
         CryptoRng, RngCore, SeedableRng,
     };
-    use std::marker::PhantomData;
 
     use halo2curves::bn256::Bn256;
     use plonkish_backend::{
-        backend::{hyperplonk::HyperPlonk, PlonkishBackend, PlonkishCircuit},
+        backend::{
+            hyperplonk::{HyperPlonk, HyperPlonkProverParam, HyperPlonkVerifierParam},
+            PlonkishBackend, PlonkishCircuit,
+        },
         frontend::halo2::Halo2Circuit,
-        halo2_curves::bn256::Fr as Fp,
+        halo2_curves::bn256::Fr,
         pcs::{
-            multilinear::{self, Gemini, MultilinearKzg},
-            univariate,
+            multilinear,
+            univariate::{self, UnivariateKzgParam},
         },
         util::transcript::{InMemoryTranscript, Keccak256Transcript},
+        Error::InvalidSumcheck,
     };
+
+    type GeminiKzg = multilinear::Gemini<univariate::UnivariateKzg<Bn256>>;
+    type ProvingBackend = HyperPlonk<GeminiKzg>;
 
     pub fn seeded_std_rng() -> impl RngCore + CryptoRng {
         StdRng::seed_from_u64(OsRng.next_u64())
+    }
+
+    pub fn initialize_params_and_circuit(
+        k: usize,
+        public_input: Vec<Fr>,
+    ) -> (
+        Halo2Circuit<Fr, FibonacciCircuit<Fr>>,
+        UnivariateKzgParam<Bn256>,
+        HyperPlonkProverParam<Fr, GeminiKzg>,
+        HyperPlonkVerifierParam<Fr, GeminiKzg>,
+    ) {
+        let circuit = FibonacciCircuit::<Fr> {
+            public_input: vec![public_input.clone()],
+        };
+
+        let circuit_fn = |k| {
+            let circuit =
+                Halo2Circuit::<Fr, FibonacciCircuit<Fr>>::new::<ProvingBackend>(k, circuit.clone());
+            (circuit.circuit_info().unwrap(), circuit)
+        };
+        let (circuit_info, circuit) = circuit_fn(k as usize);
+
+        let param = ProvingBackend::setup(&circuit_info, seeded_std_rng()).unwrap();
+
+        let (prover_parameters, verifier_parameters) =
+            ProvingBackend::preprocess(&param, &circuit_info).unwrap();
+
+        (circuit, param, prover_parameters, verifier_parameters)
     }
 
     // Test HyperPlonk implementation, specifically Gemini
@@ -379,36 +366,20 @@ mod tests {
         type GeminiKzg = multilinear::Gemini<univariate::UnivariateKzg<Bn256>>;
         type ProvingBackend = HyperPlonk<GeminiKzg>;
 
-        let k = 4;
+        let a = Fr::from(1);
+        let b = Fr::from(1);
 
-        let a = Fp::from(1); // F[0]
-        let b = Fp::from(1); // F[1]
-        let out = Fp::from(55); // F[9]
+        let public_input = vec![a, b, Fr::from(55)];
 
-        let public_input = vec![a, b, out];
-        let circuit = FibonacciCircuit::<Fp> {
-            public_input: vec![public_input.clone()],
-        };
+        let (circuit, _, prover_prarmeters, verifier_parameters) =
+            initialize_params_and_circuit(4, public_input.clone());
 
-        let circuit_fn = |k| {
-            let circuit =
-                Halo2Circuit::<Fp, FibonacciCircuit<Fp>>::new::<ProvingBackend>(k, circuit.clone());
-            (circuit.circuit_info().unwrap(), circuit)
-        };
-        let (circuit_info, circuit) = circuit_fn(k as usize);
-        let instances = circuit.instances();
-
-        let param = ProvingBackend::setup(&circuit_info, seeded_std_rng()).unwrap();
-
-        let (prover_parameters, verifier_parameters) =
-            ProvingBackend::preprocess(&param, &circuit_info).unwrap();
-
-
+        // Generating Proof
         let proof_transcript = {
             let mut proof_transcript = Keccak256Transcript::new(());
 
             HyperPlonk::prove(
-                &prover_parameters,
+                &prover_prarmeters,
                 &circuit,
                 &mut proof_transcript,
                 seeded_std_rng(),
@@ -416,25 +387,41 @@ mod tests {
             .unwrap();
             proof_transcript
         };
-        
 
-        // Generate Proof
         let proof = proof_transcript.into_proof();
 
-        let result = verify_halo2_proof(&param, &verifier_parameters, proof, public_input);
+        // Verifying Proof
+        let mut transcript;
+        let result: Result<(), plonkish_backend::Error> = {
+            transcript = Keccak256Transcript::from_proof((), proof.as_slice());
+            ProvingBackend::verify(
+                &verifier_parameters,
+                &[public_input],
+                &mut transcript,
+                seeded_std_rng(),
+            )
+        };
 
-        // let mut transcript;
-        // let result: Result<(), plonkish_backend::Error> = {
-        //     transcript = Keccak256Transcript::from_proof((), proof.as_slice());
-        //     ProvingBackend::verify(
-        //         &verifier_parameters,
-        //         instances,
-        //         &mut transcript,
-        //         seeded_std_rng(),
-        //     )
-        // };
+        assert_eq!(result, Ok(()));
 
-        assert!(result.unwrap());
+        let invalid_public_input = vec![a, b, Fr::from(56)];
+
+        let invalid_result_with_wrong_input = {
+            transcript = Keccak256Transcript::from_proof((), proof.as_slice());
+            ProvingBackend::verify(
+                &verifier_parameters,
+                &[invalid_public_input],
+                &mut transcript,
+                seeded_std_rng(), // This is not being used in the HyperPlonk implementation
+            )
+        };
+
+        assert_eq!(
+            invalid_result_with_wrong_input,
+            Err(InvalidSumcheck(
+                "Consistency failure at round 1".to_string()
+            ))
+        )
     }
 
     #[cfg(feature = "dev-graph")]
@@ -446,38 +433,49 @@ mod tests {
         root.fill(&WHITE).unwrap();
         let root = root.titled("Fib 1 Layout", ("sans-serif", 60)).unwrap();
 
-        let circuit = FibonacciCircuit::<Fp>(PhantomData);
+        let a = Fr::from(1); // F[0]
+        let b = Fr::from(1); // F[1]
+        let out = Fr::from(55); // F[9]
+
+        let public_input = vec![a, b, out];
+        let circuit = FibonacciCircuit::<Fr> {
+            public_input: vec![public_input],
+        };
+
         halo2_proofs::dev::CircuitLayout::default()
             .render(4, &circuit, &root)
             .unwrap();
     }
 
-    // #[test]
-    // fn test_generate_halo2_proof() {
-    //     let mut input = HashMap::new();
-    //     input.insert("out".to_string(), vec![Fr::from(55)]);
+    #[test]
+    fn test_helper_functions() {
+        let mut input = HashMap::new();
+        input.insert("out".to_string(), vec![Fr::from(55)]);
 
-    //     let (_, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
-    //     assert_eq!(inputs, vec![Fr::from(1), Fr::from(1), Fr::from(55)]);
-    // }
+        let public_input = vec![Fr::from(1), Fr::from(1), Fr::from(55)];
+        let (_, srs, pp, vp) = initialize_params_and_circuit(4, public_input.clone());
 
-    // #[test]
-    // fn test_verify_halo2_proof() {
-    //     let mut input = HashMap::new();
-    //     input.insert("out".to_string(), vec![Fr::from(55)]);
+        let (proof, inputs) = generate_halo2_proof(&srs, &pp, input).unwrap();
 
-    //     let (proof, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
-    //     let verified = verify_halo2_proof(&KEYS.0, &KEYS.2, proof, inputs).unwrap();
-    //     assert!(verified);
-    // }
+        assert_eq!(inputs, public_input);
 
-    // #[test]
-    // fn test_bad_proof_not_verified() {
-    //     let mut input = HashMap::new();
-    //     input.insert("out".to_string(), vec![Fr::from(56)]);
+        let result = verify_halo2_proof(&srs, &vp, proof, inputs);
+        assert_eq!(result.unwrap(), true);
+    }
 
-    //     let (proof, inputs) = generate_halo2_proof(&KEYS.0, &KEYS.1, input).unwrap();
-    //     let verified = verify_halo2_proof(&KEYS.0, &KEYS.2, proof, inputs).unwrap_or(false);
-    //     assert!(!verified);
-    // }
+    #[test]
+    fn test_bad_proof_not_verified() {
+        let mut input = HashMap::new();
+        input.insert("out".to_string(), vec![Fr::from(56)]);
+
+        let invalid_public_input = vec![Fr::from(1), Fr::from(1), Fr::from(56)];
+        let (_, srs, pp, vp) = initialize_params_and_circuit(4, invalid_public_input.clone());
+
+        let (proof, inputs) = generate_halo2_proof(&srs, &pp, input).unwrap();
+
+        assert_eq!(inputs, invalid_public_input);
+
+        let verified = verify_halo2_proof(&srs, &vp, proof, inputs).unwrap_or(false);
+        assert!(!verified);
+    }
 }

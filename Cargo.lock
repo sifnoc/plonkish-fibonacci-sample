@@ -587,23 +587,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "halo2-fibonacci"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "halo2_proofs",
- "halo2curves 0.3.3",
- "itertools 0.13.0",
- "once_cell",
- "plonkish_backend",
- "plotters",
- "rand",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "halo2_proofs"
 version = "0.2.0"
 source = "git+https://github.com/han0110/halo2.git?branch=feature/for-benchmark#4981b8d5bdaab04af9b56a5d2c482b6eec9f7fa4"
@@ -926,9 +909,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
+name = "plonkish-fibonacci"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "halo2_proofs",
+ "halo2curves 0.3.3",
+ "itertools 0.13.0",
+ "once_cell",
+ "plonkish_backend",
+ "plotters",
+ "rand",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "plonkish_backend"
 version = "0.1.0"
-source = "git+https://github.com/han0110/plonkish#303cf244803ea56d1ac8c24829ec4c67e4e798ab"
+source = "git+https://github.com/sifnoc/plonkish?branch=setup_custom#3e8d41907041a3b9e1b9bd1d22c03bbc054e740d"
 dependencies = [
  "bincode",
  "bitvec",

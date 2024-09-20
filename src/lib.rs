@@ -6,7 +6,12 @@ mod serialisation;
 use crate::circuit::{generate_halo2_proof, verify_halo2_proof};
 use crate::serialisation::{deserialize_circuit_inputs, InputsSerialisationWrapper};
 pub use circuit::FibonacciCircuit;
-use halo2curves::bn256::Fr;
+use halo2curves::bn256::{Bn256, Fr};
+#[warn(unused_imports)]
+use plonkish_backend::{
+    backend::hyperplonk::{HyperPlonkProverParam, HyperPlonkVerifierParam},
+    pcs::{multilinear::Gemini, univariate::UnivariateKzg},
+};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
@@ -22,6 +27,7 @@ impl Display for FibonacciError {
     }
 }
 
+type GeminiKzg = Gemini<UnivariateKzg<Bn256>>;
 type GenerateProofResult = (Vec<u8>, Vec<u8>);
 
 pub fn prove(
@@ -34,16 +40,15 @@ pub fn prove(
 
     let srs = io::read_srs_path(Path::new(&srs_key_path));
 
-    // let proving_key = io::read_pk::<FibonacciCircuit<Fr>>(Path::new(&proving_key_path), ());
+    let proving_key =
+        io::read_pk::<HyperPlonkProverParam<Fr, GeminiKzg>>(Path::new(&proving_key_path));
 
-    // let (proof, inputs) = generate_halo2_proof(&srs, &proving_key, circuit_inputs)
-    //     .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
+    let (proof, inputs) = generate_halo2_proof(&srs, &proving_key, circuit_inputs)
+        .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
 
-    // let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
-    //     .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
+    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
+        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
 
-    let proof = vec![0u8; 4];
-    let serialized_inputs = vec![0u8; 4];
     Ok((proof, serialized_inputs))
 }
 
@@ -58,12 +63,12 @@ pub fn verify(
             .map_err(|e| FibonacciError(e.to_string()))?
             .0;
 
-    // let srs = io::read_srs_path(Path::new(&srs_key_path));
+    let srs = io::read_srs_path(Path::new(&srs_key_path));
 
-    // let verifying_key = io::read_vk::<FibonacciCircuit<Fr>>(Path::new(&verifying_key_path), ());
+    let verifying_key =
+        io::read_vk::<HyperPlonkVerifierParam<Fr, GeminiKzg>>(Path::new(&verifying_key_path));
 
-    // let is_valid = verify_halo2_proof(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
-    let is_valid = true;
+    let is_valid = verify_halo2_proof(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
 
     Ok(is_valid)
 }

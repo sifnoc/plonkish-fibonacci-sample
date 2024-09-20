@@ -1,58 +1,56 @@
-use std::fmt;
-use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use std::{
+    error::Error,
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 
-use halo2_proofs::halo2curves::bn256::{Bn256, Fr, G1Affine};
-use halo2_proofs::plonk::{Circuit, ProvingKey, VerifyingKey};
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::poly::kzg::commitment::ParamsKZG;
-use halo2_proofs::SerdeFormat::RawBytes;
+use halo2_proofs::halo2curves::bn256::Bn256;
+use plonkish_backend::{
+    backend::{hyperplonk::HyperPlonk, PlonkishBackend},
+    pcs::{
+        multilinear,
+        univariate::{self, UnivariateKzgParam},
+    },
+};
 
-fn with_writer<E>(path: &Path, f: impl FnOnce(&mut BufWriter<File>) -> Result<(), E>)
-where
-    E: fmt::Debug,
-{
-    let file = File::create(path).expect("Unable to create file");
-    let mut writer = BufWriter::new(file);
-    f(&mut writer).expect("Unable to write to file");
-    writer.flush().expect("Unable to flush file");
-}
-
-fn with_reader<T, E>(path: &Path, f: impl FnOnce(&mut BufReader<File>) -> Result<T, E>) -> T
-where
-    E: fmt::Debug,
-{
-    let file = File::open(path).expect("Unable to open file");
-    let mut reader = BufReader::new(file);
-    f(&mut reader).expect("Unable to read from file")
-}
-
-/// Write SRS to file.
-pub fn write_srs(srs: &ParamsKZG<Bn256>, path: &Path) {
-    with_writer(path, |writer| srs.write(writer));
-}
+type GeminiKzg = multilinear::Gemini<univariate::UnivariateKzg<Bn256>>;
+type ProvingBackend = HyperPlonk<GeminiKzg>;
 
 /// Read SRS from file.
-pub fn read_srs_path(path: &Path) -> ParamsKZG<Bn256> {
-    with_reader(path, |reader| ParamsKZG::read(reader))
+pub fn read_srs_path(path: &Path) -> UnivariateKzgParam<Bn256> {
+    let filename = path.as_os_str().to_str().unwrap();
+    ProvingBackend::setup_custom(filename).unwrap()
 }
 
-/// Write proving key and verification key to file.
-pub fn write_keys(pk: &ProvingKey<G1Affine>, pk_path: &Path, vk_path: &Path) {
-    with_writer(pk_path, |writer| pk.write(writer, RawBytes));
-    with_writer(vk_path, |writer| pk.get_vk().write(writer, RawBytes));
+// This method only for prover/verifier params
+pub fn save_to_file<P: AsRef<Path>, T: Serialize>(
+    path: &P,
+    data: &T,
+) -> Result<(), Box<dyn Error>> {
+    let serialized_data = bincode::serialize(data)?;
+    let mut file = File::create(path)?;
+    file.write_all(&serialized_data)?;
+    Ok(())
 }
 
-// TODO: fix this referencing with `gen_key`
-// /// Read a proving key from the file.
-// pub fn read_pk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> ProvingKey<G1Affine> {
-//     // with_reader(path, |reader| ProvingKey::read::<_, C>(reader, RawBytes, params))
-//     unimplemented!()
-// }
+pub fn load_from_file<P: AsRef<Path> + ?Sized, T: for<'de> Deserialize<'de>>(
+    path: &P,
+) -> Result<T, Box<dyn Error>> {
+    let mut file = File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    let deserialized_data = bincode::deserialize(&buffer)?;
+    Ok(deserialized_data)
+}
 
-// /// Read a verification key from the file.
-// pub fn read_vk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> VerifyingKey<G1Affine> {
-//     // with_reader(path, |reader| VerifyingKey::read::<_, C>(reader, RawBytes, params))
-//     unimplemented!()
-// }
+/// Read a proving key from the file.
+pub fn read_pk<T: for<'de> Deserialize<'de>>(path: &Path) -> T {
+    load_from_file::<_, T>(path).unwrap()
+}
+
+/// Read a verification key from the file.
+pub fn read_vk<T: for<'de> Deserialize<'de>>(path: &Path) -> T {
+    load_from_file::<_, T>(path).unwrap()
+}
