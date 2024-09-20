@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 
+use crate::FibonacciError;
 use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2curves::bn256::Fr;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::FibonacciError;
 
 pub(crate) struct InputsSerialisationWrapper(pub(crate) Vec<Fr>);
 

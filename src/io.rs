@@ -44,12 +44,15 @@ pub fn write_keys(pk: &ProvingKey<G1Affine>, pk_path: &Path, vk_path: &Path) {
     with_writer(vk_path, |writer| pk.get_vk().write(writer, RawBytes));
 }
 
-/// Read a proving key from the file.
-pub fn read_pk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> ProvingKey<G1Affine> {
-    with_reader(path, |reader| ProvingKey::read::<_, C>(reader, RawBytes, params))
-}
+// TODO: fix this referencing with `gen_key`
+// /// Read a proving key from the file.
+// pub fn read_pk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> ProvingKey<G1Affine> {
+//     // with_reader(path, |reader| ProvingKey::read::<_, C>(reader, RawBytes, params))
+//     unimplemented!()
+// }
 
-/// Read a verification key from the file.
-pub fn read_vk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> VerifyingKey<G1Affine> {
-    with_reader(path, |reader| VerifyingKey::read::<_, C>(reader, RawBytes, params))
-}
+// /// Read a verification key from the file.
+// pub fn read_vk<C: Circuit<Fr>>(path: &Path, params: C::Params) -> VerifyingKey<G1Affine> {
+//     // with_reader(path, |reader| VerifyingKey::read::<_, C>(reader, RawBytes, params))
+//     unimplemented!()
+// }
