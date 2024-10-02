@@ -1,6 +1,10 @@
-# Plonkish Halo2 Circuit
+# Plonkish HyperPlonk Circuit
 
-This is a Halo2 circuit that computes with Plonkish Backend.
+This is a HyperPlonk circuit that computes with different polynomial commitment scheme.
+
+Currently support that f
+
+
 
 ## Running the tests
 

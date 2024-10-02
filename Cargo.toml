@@ -10,9 +10,13 @@ path = "src/bin/gen_keys.rs"
 
 [features]
 dev-graph = ["halo2_proofs/dev-graph", "plotters"]
-default = ["frontend-halo2"]
+default = ["frontend-halo2", "kzg"]
 
 frontend-halo2 = ["dep:halo2_proofs"]
+
+# PCS
+kzg = []
+gemini = []
 
 [dependencies]
 halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.3" }

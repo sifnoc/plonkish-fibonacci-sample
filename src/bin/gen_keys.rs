@@ -1,28 +1,25 @@
 use std::env;
 use std::path::Path;
 
-use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
-#[warn(unused_imports)]
+use halo2_proofs::halo2curves::bn256::Fr;
 use plonkish_backend::{
     backend::{
         hyperplonk::{HyperPlonk, HyperPlonkProverParam, HyperPlonkVerifierParam},
         PlonkishBackend, PlonkishCircuit,
     },
     frontend::halo2::Halo2Circuit,
-    pcs::{multilinear, univariate},
 };
 use plonkish_fibonacci::{
     io::{read_srs_path, save_to_file},
+    pcs::Pcs,
     FibonacciCircuit,
 };
 
 pub fn main() {
-    type GeminiKzg = multilinear::Gemini<univariate::UnivariateKzg<Bn256>>;
-    type ProvingBackend = HyperPlonk<GeminiKzg>;
+    type ProvingBackend = HyperPlonk<Pcs>;
 
     // Get the project's root directory from the `CARGO_MANIFEST_DIR` environment variable
     let project_root = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
-
 
     // Read SRS from file
     let srs_filename = env::args().nth(1).expect("Please specify SRS file path");
@@ -53,10 +50,9 @@ pub fn main() {
         ProvingBackend::preprocess(&param, &circuit_info).unwrap();
 
     let pk_path = out_dir.join("hyperplonk_fibonacci_pk.bin");
-    let _ = save_to_file::<_, HyperPlonkProverParam<Fr, GeminiKzg>>(&pk_path, &prover_parameters);
+    let _ = save_to_file::<_, HyperPlonkProverParam<Fr, Pcs>>(&pk_path, &prover_parameters);
     let vk_path = out_dir.join("hyperplonk_fibonacci_vk.bin");
-    let _ =
-        save_to_file::<_, HyperPlonkVerifierParam<Fr, GeminiKzg>>(&vk_path, &verifier_parameters);
+    let _ = save_to_file::<_, HyperPlonkVerifierParam<Fr, Pcs>>(&vk_path, &verifier_parameters);
 
     println!("Preparation finished successfully.");
     println!("SRS readed from {}", srs_path.display());

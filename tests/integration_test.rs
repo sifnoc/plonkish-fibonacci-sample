@@ -9,7 +9,11 @@ const ASSETS_PATH: &str = "out";
 fn setup_keys(srs_filename: &str) {
     INIT.call_once(|| {
         let mut gen_keys_command = Command::new("cargo");
-        gen_keys_command.arg("run").arg("--bin").arg("gen-keys").arg(srs_filename);
+        gen_keys_command
+            .arg("run")
+            .arg("--bin")
+            .arg("gen-keys")
+            .arg(srs_filename);
 
         gen_keys_command
             .spawn()
@@ -24,7 +28,11 @@ fn test_prove_verify_end_to_end() {
     let mut input = HashMap::new();
     input.insert("out".to_string(), vec!["55".to_string()]);
 
-    let srs_key_path= "unihyperplonk-srs-4";
+    #[cfg(feature = "kzg")]
+    let srs_key_path = "hyperplonk-srs-4";
+    #[cfg(feature = "gemini")]
+    let srs_key_path = "unihyperplonk-srs-4";
+
     setup_keys(&srs_key_path);
 
     let proving_key_path = format!("{}/hyperplonk_fibonacci_pk.bin", ASSETS_PATH);

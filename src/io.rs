@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fs::File,
@@ -6,20 +5,15 @@ use std::{
     path::Path,
 };
 
-use halo2_proofs::halo2curves::bn256::Bn256;
-use plonkish_backend::{
-    backend::{hyperplonk::HyperPlonk, PlonkishBackend},
-    pcs::{
-        multilinear,
-        univariate::{self, UnivariateKzgParam},
-    },
-};
+use plonkish_backend::backend::{hyperplonk::HyperPlonk, PlonkishBackend};
+use serde::{Deserialize, Serialize};
 
-type GeminiKzg = multilinear::Gemini<univariate::UnivariateKzg<Bn256>>;
-type ProvingBackend = HyperPlonk<GeminiKzg>;
+use crate::pcs::{KzgParam, Pcs};
+
+type ProvingBackend = HyperPlonk<Pcs>;
 
 /// Read SRS from file.
-pub fn read_srs_path(path: &Path) -> UnivariateKzgParam<Bn256> {
+pub fn read_srs_path(path: &Path) -> KzgParam {
     let filename = path.as_os_str().to_str().unwrap();
     ProvingBackend::setup_custom(filename).unwrap()
 }
