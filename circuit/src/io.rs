@@ -5,17 +5,16 @@ use std::{
     path::Path,
 };
 
-use plonkish_backend::backend::{hyperplonk::HyperPlonk, PlonkishBackend};
+use plonkish_backend::backend::PlonkishBackend;
 use serde::{Deserialize, Serialize};
 
-use crate::pcs::{KzgParam, Pcs};
-
-type ProvingBackend = HyperPlonk<Pcs>;
+use crate::PlonkishComponents;
 
 /// Read SRS from file.
-pub fn read_srs_path(path: &Path) -> KzgParam {
+pub fn read_srs_path<PC: PlonkishComponents>(path: &Path) -> PC::Param {
     let filename = path.as_os_str().to_str().unwrap();
-    ProvingBackend::setup_custom(filename).unwrap()
+    // ProvingBackend::setup_custom(filename).unwrap()
+    PC::ProvingBackend::setup_custom(filename).unwrap()
 }
 
 // This method only for prover/verifier params
