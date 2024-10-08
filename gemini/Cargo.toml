@@ -1,0 +1,14 @@
+[package]
+name = "gemini-fibonacci"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gen-keys"
+path = "src/bin/gen_gemini_keys.rs"
+
+[dependencies]
+fibonacci-circuit = { path = "../circuit" }
+halo2_proofs = { git = "https://github.com/han0110/halo2.git", branch = "feature/for-benchmark" }
+plonkish_backend = { git = "https://github.com/sifnoc/plonkish", branch = "setup_custom", features = ["frontend-halo2", "benchmark"] }
+halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.3" }
