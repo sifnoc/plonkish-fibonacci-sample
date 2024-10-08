@@ -27,7 +27,7 @@ pub fn prove(
     _prove::<HyperPlonkScheme>(srs_key_path, proving_key_path, input)
 }
 
-pub fn verify<PC>(
+pub fn verify(
     srs_key_path: &str,
     verifying_key_path: &str,
     proof: Vec<u8>,

@@ -1,3 +1,5 @@
+[![Rust](https://github.com/sifnoc/plonkish-fibonacci-sample/actions/workflows/rust.yml/badge.svg)](https://github.com/sifnoc/plonkish-fibonacci-sample/actions/workflows/rust.yml)
+
 # Fibonacci Circuit: HyperPlonk & Gemini Implementations
 
 This example showcases the Fibonacci circuit using two distinct backend implementations: **HyperPlonk** and **Gemini**.

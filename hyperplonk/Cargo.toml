@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "gen-keys"
-path = "src/bin/gen_keys.rs"
+path = "src/bin/gen_hyperplonk_keys.rs"
 
 [dependencies]
 fibonacci-circuit = { path = "../circuit" }
