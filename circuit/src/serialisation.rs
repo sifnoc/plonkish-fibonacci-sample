@@ -9,7 +9,7 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub(crate) struct InputsSerialisationWrapper(pub(crate) Vec<Fr>);
+pub struct InputsSerialisationWrapper(pub Vec<Fr>);
 
 pub fn deserialize_circuit_inputs(
     ser_inputs: HashMap<String, Vec<String>>,

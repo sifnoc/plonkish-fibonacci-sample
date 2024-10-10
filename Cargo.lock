@@ -934,6 +934,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
 
 [[package]]
+name = "plonk-fibonacci"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "fibonacci-circuit",
+ "halo2_proofs",
+ "halo2curves 0.3.3",
+ "plonkish_backend",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "plonkish_backend"
 version = "0.1.0"
 source = "git+https://github.com/sifnoc/plonkish?branch=setup_custom#3e8d41907041a3b9e1b9bd1d22c03bbc054e740d"

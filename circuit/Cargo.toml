@@ -13,7 +13,7 @@ frontend-halo2 = ["dep:halo2_proofs"]
 halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.3" }
 plotters = {version = "0.3.6", optional = true}
 serde = { version = "1.0.204", features = ["derive"] }
-bincode = "1.3.3"
+bincode = { workspace = true }
 rand = "0.8.5"
 thiserror = "^1.0"
 plonkish_backend = { git = "https://github.com/sifnoc/plonkish", branch = "setup_custom", features = ["frontend-halo2", "benchmark"] }

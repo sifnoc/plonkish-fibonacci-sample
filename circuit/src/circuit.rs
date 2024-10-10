@@ -235,7 +235,6 @@ where
     let a = Fr::from(1); // F[0]
     let b = Fr::from(1); // F[1]
 
-    // TODO: retrieve from params(srs or pp)..
     let k = 4usize;
 
     // `out` value right now must be 55, but will be replaced with the actual output value
@@ -350,7 +349,6 @@ pub mod test_utils {
         (circuit, param, prover_parameters, verifier_parameters)
     }
 
-    // Test HyperPlonk implementation, specifically Gemini
     pub fn fibonacci_circuit_test<PC>()
     where
         PC: PlonkishComponents,
