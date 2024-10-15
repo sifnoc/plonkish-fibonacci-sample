@@ -5,7 +5,7 @@ use plonk_fibonacci::*;
 
 #[test]
 pub fn plonk_integration_test() {
-    let srs_key_path = "hermez-raw-4";
+    let srs_key_path = "perpetual-powers-of-tau-raw-3";
     let proving_key_path = "out/plonk_fibonacci_pk.bin";
     let verifying_key_path = "out/plonk_fibonacci_vk.bin";
 
