@@ -13,7 +13,6 @@ use crate::PlonkishComponents;
 /// Read SRS from file.
 pub fn read_srs_path<PC: PlonkishComponents>(path: &Path) -> PC::Param {
     let filename = path.as_os_str().to_str().unwrap();
-    // ProvingBackend::setup_custom(filename).unwrap()
     PC::ProvingBackend::setup_custom(filename).unwrap()
 }
 

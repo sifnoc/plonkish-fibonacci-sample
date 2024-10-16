@@ -16,7 +16,7 @@ use crate::circuit::{generate_halo2_proof, verify_halo2_proof};
 pub use circuit::FibonacciCircuit;
 
 pub mod io;
-mod serialisation;
+pub mod serialisation;
 use crate::serialisation::{deserialize_circuit_inputs, InputsSerialisationWrapper};
 
 pub trait PlonkishComponents {
@@ -26,8 +26,6 @@ pub trait PlonkishComponents {
     type Pcs: PolynomialCommitmentScheme<
         Fr,
         Param = Self::Param,
-        // ProverParam = Self::ProverParam,
-        // VerifierParam = Self::VerifierParam,
     >;
     type ProvingBackend: PlonkishBackend<
             Fr,
@@ -38,7 +36,7 @@ pub trait PlonkishComponents {
 }
 
 #[derive(Debug, Error)]
-pub struct FibonacciError(String);
+pub struct FibonacciError(pub String);
 
 impl Display for FibonacciError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -145,7 +143,7 @@ where
     Ok(is_valid)
 }
 
-fn setup_keys(srs_filename: &str) {
+pub fn setup_keys(srs_filename: &str) {
     let once = Once::new();
 
     once.call_once(|| {
