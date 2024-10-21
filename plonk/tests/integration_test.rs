@@ -17,6 +17,6 @@ pub fn plonk_integration_test() {
     let result = prove(&srs_key_path, &proving_key_path, input).unwrap();
 
     let verified = verify(&srs_key_path, &verifying_key_path, result.0, result.1).unwrap();
-    
+
     assert!(verified);
 }
