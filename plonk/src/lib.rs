@@ -24,7 +24,7 @@ fn generate_halo2_proof(
     pk: &ProvingKey<G1Affine>,
     circuit: FibonacciCircuit<Fr>,
     public_inputs: Vec<Fr>,
-) -> Result<(Vec<u8>, Vec<u8>), Box<dyn Error>> {
+) -> Result<(Vec<u8>, Vec<Fr>), Box<dyn Error>> {
     let mut transcript = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
     let _result = create_proof::<
         KZGCommitmentScheme<Bn256>,
@@ -45,25 +45,18 @@ fn generate_halo2_proof(
     .expect("prover should not fail");
 
     let proof = transcript.finalize();
-    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(public_inputs))
-        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
 
-    Ok((proof, serialized_inputs))
+    Ok((proof, public_inputs))
 }
 
 fn verify_halo2_proof(
     params: &ParamsKZG<Bn256>,
     vk: &VerifyingKey<G1Affine>,
     proof: Vec<u8>,
-    public_inputs: Vec<u8>,
-) -> Result<bool, Box<dyn Error>> {
+    public_inputs: Vec<Fr>,
+) -> Result<bool, FibonacciError> {
     let strategy = SingleStrategy::new(&params);
     let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
-
-    let deserialized_inputs: Vec<Fr> =
-        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
-            .map_err(|e| FibonacciError(e.to_string()))?
-            .0;
 
     let result = verify_proof::<
         KZGCommitmentScheme<Bn256>,
@@ -76,7 +69,7 @@ fn verify_halo2_proof(
         &params,
         &vk,
         strategy,
-        &[&[&deserialized_inputs]],
+        &[&[&public_inputs]],
         &mut transcript,
     )
     .is_ok();
@@ -112,8 +105,10 @@ pub fn prove(
     // The public input followed fibonacci circuit
     let public_input = vec![Fr::from(1), Fr::from(1), out];
 
-    let (proof, serialized_inputs) =
+    let (proof, unserialized_inputs) =
         generate_halo2_proof(&params, &proving_key, circuit, public_input).unwrap();
+    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(unserialized_inputs))
+        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
 
     Ok((proof, serialized_inputs))
 }
@@ -133,7 +128,12 @@ pub fn verify(
     let verifying_key =
         VerifyingKey::read::<_, FibonacciCircuit<Fr>, false>(vk_fs, RawBytes).unwrap();
 
-    let result = verify_halo2_proof(&params, &verifying_key, proof, public_inputs).unwrap();
+    let deserialized_inputs: Vec<Fr> =
+        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
+            .map_err(|e| FibonacciError(e.to_string()))?
+            .0;
+
+    let result = verify_halo2_proof(&params, &verifying_key, proof, deserialized_inputs).unwrap();
 
     Ok(result)
 }
@@ -229,21 +229,21 @@ mod tests {
 
         let public_input = vec![Fr::from(1), Fr::from(1), Fr::from(55)];
 
-        let (proof, serialized_input) =
+        let (proof, serialized_inputs) =
             generate_halo2_proof(&params, &proving_key, circuit.clone(), public_input).unwrap();
 
         assert_eq!(
-            verify_halo2_proof(&params, &verifying_key, proof, serialized_input).unwrap(),
+            verify_halo2_proof(&params, &verifying_key, proof, serialized_inputs).unwrap(),
             true
         );
 
         // Ensures verification fails with incorrect public input
         let wrong_public_input = vec![Fr::from(1), Fr::from(1), Fr::from(56)];
-        let (bad_proof, serialized_input) =
+        let (bad_proof, serialized_inputs) =
             generate_halo2_proof(&params, &proving_key, circuit, wrong_public_input).unwrap();
 
         assert_eq!(
-            verify_halo2_proof(&params, &verifying_key, bad_proof, serialized_input).unwrap(),
+            verify_halo2_proof(&params, &verifying_key, bad_proof, serialized_inputs).unwrap(),
             false
         );
     }
