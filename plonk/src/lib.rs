@@ -19,7 +19,7 @@ use halo2_proofs::{
 };
 use rand::rngs::OsRng;
 
-fn generate_halo2_proof(
+pub fn generate_halo2_proof(
     params: &ParamsKZG<Bn256>,
     pk: &ProvingKey<G1Affine>,
     circuit: FibonacciCircuit<Fr>,
@@ -49,7 +49,7 @@ fn generate_halo2_proof(
     Ok((proof, public_inputs))
 }
 
-fn verify_halo2_proof(
+pub fn verify_halo2_proof(
     params: &ParamsKZG<Bn256>,
     vk: &VerifyingKey<G1Affine>,
     proof: Vec<u8>,
