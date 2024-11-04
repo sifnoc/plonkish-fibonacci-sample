@@ -92,6 +92,27 @@ where
     println!("Verification key stored in {}", vk_path.display());
 }
 
+fn prove_with_params<PC>(
+    srs: PC::Param,
+    proving_key: PC::ProverParam,
+    input: HashMap<String, Vec<String>>,
+) -> Result<GenerateProofResult, Box<dyn Error>>
+where
+    PC: PlonkishComponents,
+    ProofTranscript: TranscriptWrite<CommitmentChunk<Fr, PC::Pcs>, Fr>,
+{
+    let circuit_inputs = deserialize_circuit_inputs(input)
+        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
+
+    let (proof, inputs) = generate_halo2_proof::<PC>(&srs, &proving_key, circuit_inputs)
+        .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
+
+    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
+        .map_err(|e| FibonacciError(format!("Serialization of Inputs failed: {}", e)))?;
+
+    Ok((proof, serialized_inputs))
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 pub fn prove<PC>(
     srs_key_path: &str,
@@ -102,21 +123,11 @@ where
     PC: PlonkishComponents,
     ProofTranscript: TranscriptWrite<CommitmentChunk<Fr, PC::Pcs>, Fr>,
 {
-    let circuit_inputs = deserialize_circuit_inputs(input)
-        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
-
     let srs = io::read_srs_path::<PC>(Path::new(&srs_key_path));
-
     let proving_key =
         io::load_from_file::<_, PC::ProverParam>(Path::new(&proving_key_path)).unwrap();
 
-    let (proof, inputs) = generate_halo2_proof::<PC>(&srs, &proving_key, circuit_inputs)
-        .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
-
-    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
-        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
-
-    Ok((proof, serialized_inputs))
+    prove_with_params::<PC>(srs, proving_key, input)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -129,20 +140,31 @@ where
     PC: PlonkishComponents,
     ProofTranscript: TranscriptWrite<CommitmentChunk<Fr, PC::Pcs>, Fr>,
 {
-    let circuit_inputs = deserialize_circuit_inputs(input)
-        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
-
     let srs = io::read_srs_bytes::<PC>(srs_key);
-
     let proving_key = io::load_from_bytes::<PC::ProverParam>(proving_key).unwrap();
 
-    let (proof, inputs) = generate_halo2_proof::<PC>(&srs, &proving_key, circuit_inputs)
-        .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
+    prove_with_params::<PC>(srs, proving_key, input)
+}
 
-    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
-        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
+fn verify_with_params<PC>(
+    srs: PC::Param,
+    verifying_key: PC::VerifierParam,
+    proof: Vec<u8>,
+    public_inputs: Vec<u8>,
+) -> Result<bool, Box<dyn Error>>
+where
+    PC: PlonkishComponents,
+    ProofTranscript: TranscriptRead<CommitmentChunk<Fr, PC::Pcs>, Fr>,
+{
+    let deserialized_inputs: Vec<Fr> =
+        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
+            .map_err(|e| FibonacciError(e.to_string()))?
+            .0;
 
-    Ok((proof, serialized_inputs))
+    let is_valid = verify_halo2_proof::<PC>(&srs, &verifying_key, proof, deserialized_inputs)
+        .map_err(|e| FibonacciError(format!("Verification failed: {}", e)))?;
+
+    Ok(is_valid)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -156,20 +178,11 @@ where
     PC: PlonkishComponents,
     ProofTranscript: TranscriptRead<CommitmentChunk<Fr, PC::Pcs>, Fr>,
 {
-    let deserialized_inputs: Vec<Fr> =
-        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
-            .map_err(|e| FibonacciError(e.to_string()))?
-            .0;
-
-    let srs = io::read_srs_path::<PC>(Path::new(&srs_key_path));
-
+    let srs = io::read_srs_path::<PC>(Path::new(srs_key_path));
     let verifying_key =
-        io::load_from_file::<_, PC::VerifierParam>(Path::new(&verifying_key_path)).unwrap();
+        io::load_from_file::<_, PC::VerifierParam>(Path::new(verifying_key_path)).unwrap();
 
-    let is_valid =
-        verify_halo2_proof::<PC>(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
-
-    Ok(is_valid)
+    verify_with_params::<PC>(srs, verifying_key, proof, public_inputs)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -183,19 +196,10 @@ where
     PC: PlonkishComponents,
     ProofTranscript: TranscriptRead<CommitmentChunk<Fr, PC::Pcs>, Fr>,
 {
-    let deserialized_inputs: Vec<Fr> =
-        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
-            .map_err(|e| FibonacciError(e.to_string()))?
-            .0;
-
     let srs = io::read_srs_bytes::<PC>(srs_key);
-
     let verifying_key = io::load_from_bytes::<PC::VerifierParam>(verifying_key).unwrap();
 
-    let is_valid =
-        verify_halo2_proof::<PC>(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
-
-    Ok(is_valid)
+    verify_with_params::<PC>(srs, verifying_key, proof, public_inputs)
 }
 
 pub fn setup_keys(genkey_cmd: &str, srs_filename: &str) {
