@@ -1,9 +1,12 @@
-use std::{collections::HashMap, env, error::Error, fmt::Display, io::Cursor, path::Path, process::Command, sync::Once};
+use std::{
+    collections::HashMap, env, error::Error, fmt::Display, io::Cursor, path::Path,
+    process::Command, sync::Once,
+};
 
-use halo2curves::bn256::Fr;
 use plonkish_backend::{
     backend::{PlonkishBackend, PlonkishCircuit, WitnessEncoding},
     frontend::halo2::Halo2Circuit,
+    halo2_curves::bn256::Fr,
     pcs::{CommitmentChunk, PolynomialCommitmentScheme},
     util::transcript::{Keccak256Transcript, TranscriptRead, TranscriptWrite},
 };
@@ -14,7 +17,6 @@ use thiserror::Error;
 pub mod circuit;
 use crate::circuit::{generate_halo2_proof, verify_halo2_proof};
 pub use circuit::FibonacciCircuit;
-
 pub mod io;
 pub mod serialisation;
 use crate::serialisation::{deserialize_circuit_inputs, InputsSerialisationWrapper};
@@ -23,10 +25,7 @@ pub trait PlonkishComponents {
     type Param: Clone + Serialize + DeserializeOwned;
     type ProverParam: Clone + Serialize + DeserializeOwned;
     type VerifierParam: Clone + Serialize + DeserializeOwned;
-    type Pcs: PolynomialCommitmentScheme<
-        Fr,
-        Param = Self::Param,
-    >;
+    type Pcs: PolynomialCommitmentScheme<Fr, Param = Self::Param>;
     type ProvingBackend: PlonkishBackend<
             Fr,
             Pcs = Self::Pcs,
@@ -93,6 +92,7 @@ where
     println!("Verification key stored in {}", vk_path.display());
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn prove<PC>(
     srs_key_path: &str,
     proving_key_path: &str,
@@ -107,7 +107,8 @@ where
 
     let srs = io::read_srs_path::<PC>(Path::new(&srs_key_path));
 
-    let proving_key = io::read_pk::<PC::ProverParam>(Path::new(&proving_key_path));
+    let proving_key =
+        io::load_from_file::<_, PC::ProverParam>(Path::new(&proving_key_path)).unwrap();
 
     let (proof, inputs) = generate_halo2_proof::<PC>(&srs, &proving_key, circuit_inputs)
         .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
@@ -118,6 +119,33 @@ where
     Ok((proof, serialized_inputs))
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn prove<PC>(
+    srs_key: &[u8],
+    proving_key: &[u8],
+    input: HashMap<String, Vec<String>>,
+) -> Result<GenerateProofResult, Box<dyn Error>>
+where
+    PC: PlonkishComponents,
+    ProofTranscript: TranscriptWrite<CommitmentChunk<Fr, PC::Pcs>, Fr>,
+{
+    let circuit_inputs = deserialize_circuit_inputs(input)
+        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
+
+    let srs = io::read_srs_bytes::<PC>(srs_key);
+
+    let proving_key = io::load_from_bytes::<PC::ProverParam>(proving_key).unwrap();
+
+    let (proof, inputs) = generate_halo2_proof::<PC>(&srs, &proving_key, circuit_inputs)
+        .map_err(|e| FibonacciError(format!("Failed to generate the proof: {}", e)))?;
+
+    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(inputs))
+        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
+
+    Ok((proof, serialized_inputs))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn verify<PC>(
     srs_key_path: &str,
     verifying_key_path: &str,
@@ -135,7 +163,8 @@ where
 
     let srs = io::read_srs_path::<PC>(Path::new(&srs_key_path));
 
-    let verifying_key = io::read_vk::<PC::VerifierParam>(Path::new(&verifying_key_path));
+    let verifying_key =
+        io::load_from_file::<_, PC::VerifierParam>(Path::new(&verifying_key_path)).unwrap();
 
     let is_valid =
         verify_halo2_proof::<PC>(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
@@ -143,7 +172,33 @@ where
     Ok(is_valid)
 }
 
-pub fn setup_keys(srs_filename: &str) {
+#[cfg(target_arch = "wasm32")]
+pub fn verify<PC>(
+    srs_key: &[u8],
+    verifying_key: &[u8],
+    proof: Vec<u8>,
+    public_inputs: Vec<u8>,
+) -> Result<bool, Box<dyn Error>>
+where
+    PC: PlonkishComponents,
+    ProofTranscript: TranscriptRead<CommitmentChunk<Fr, PC::Pcs>, Fr>,
+{
+    let deserialized_inputs: Vec<Fr> =
+        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
+            .map_err(|e| FibonacciError(e.to_string()))?
+            .0;
+
+    let srs = io::read_srs_bytes::<PC>(srs_key);
+
+    let verifying_key = io::load_from_bytes::<PC::VerifierParam>(verifying_key).unwrap();
+
+    let is_valid =
+        verify_halo2_proof::<PC>(&srs, &verifying_key, proof, deserialized_inputs).unwrap();
+
+    Ok(is_valid)
+}
+
+pub fn setup_keys(genkey_cmd: &str, srs_filename: &str) {
     let once = Once::new();
 
     once.call_once(|| {
@@ -151,7 +206,7 @@ pub fn setup_keys(srs_filename: &str) {
         gen_keys_command
             .arg("run")
             .arg("--bin")
-            .arg("gen-keys")
+            .arg(genkey_cmd)
             .arg(srs_filename);
 
         gen_keys_command
@@ -162,8 +217,10 @@ pub fn setup_keys(srs_filename: &str) {
     });
 }
 
-// For external integration tests 
+// For external integration tests
+#[cfg(not(target_arch = "wasm32"))]
 pub fn test_prove_verify_end_to_end<PC>(
+    genkey_cmd: &str,
     srs_key_path: &str,
     proving_key_path: &str,
     verifying_key_path: &str,
@@ -175,12 +232,10 @@ pub fn test_prove_verify_end_to_end<PC>(
     let mut input = HashMap::new();
     input.insert("out".to_string(), vec!["55".to_string()]);
 
-    setup_keys(&srs_key_path);
+    setup_keys(genkey_cmd, &srs_key_path);
 
     let result = prove::<PC>(&srs_key_path, &proving_key_path, input).unwrap();
 
-    let verified =
-        verify::<PC>(&srs_key_path, &verifying_key_path, result.0, result.1)
-            .unwrap();
+    let verified = verify::<PC>(&srs_key_path, &verifying_key_path, result.0, result.1).unwrap();
     assert!(verified);
 }

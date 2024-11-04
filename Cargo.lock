@@ -560,7 +560,6 @@ version = "0.1.0"
 dependencies = [
  "fibonacci-circuit",
  "halo2_proofs",
- "halo2curves 0.3.3",
  "plonkish_backend",
 ]
 
@@ -678,7 +677,6 @@ version = "0.1.0"
 dependencies = [
  "fibonacci-circuit",
  "halo2_proofs",
- "halo2curves 0.3.3",
  "plonkish_backend",
 ]
 
@@ -940,7 +938,6 @@ dependencies = [
  "bincode",
  "fibonacci-circuit",
  "halo2_proofs",
- "halo2curves 0.3.3",
  "plonkish_backend",
  "rand",
  "serde",
@@ -949,7 +946,7 @@ dependencies = [
 [[package]]
 name = "plonkish_backend"
 version = "0.1.0"
-source = "git+https://github.com/sifnoc/plonkish?branch=setup_custom#3e8d41907041a3b9e1b9bd1d22c03bbc054e740d"
+source = "git+https://github.com/sifnoc/plonkish?branch=setup_custom#4f42eeb3ff0666c74168d5b375cd789b46998e1b"
 dependencies = [
  "bincode",
  "bitvec",

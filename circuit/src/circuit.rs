@@ -3,10 +3,10 @@ use std::{collections::HashMap, io::Cursor, marker::PhantomData};
 
 use halo2_proofs::{
     circuit::{AssignedCell, Layouter, SimpleFloorPlanner},
+    halo2curves::ff::Field,
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Instance, Selector},
     poly::Rotation,
 };
-use halo2curves::ff::Field;
 use plonkish_backend::{
     backend::PlonkishBackend,
     frontend::halo2::{CircuitExt, Halo2Circuit},
@@ -413,7 +413,8 @@ pub mod test_utils {
         )
     }
 
-    pub fn helper_functions_test<PC>() where
+    pub fn helper_functions_test<PC>()
+    where
         PC: PlonkishComponents,
         ProofTranscript: TranscriptWrite<CommitmentChunk<Fr, PC::Pcs>, Fr>
             + TranscriptRead<CommitmentChunk<Fr, PC::Pcs>, Fr>,

@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fs::File,
-    io::{Read, Write},
+    io::{BufReader, Read, Write},
     path::Path,
 };
 
@@ -13,7 +13,13 @@ use crate::PlonkishComponents;
 /// Read SRS from file.
 pub fn read_srs_path<PC: PlonkishComponents>(path: &Path) -> PC::Param {
     let filename = path.as_os_str().to_str().unwrap();
-    PC::ProvingBackend::setup_custom(filename).unwrap()
+    let mut reader = File::open(filename).unwrap();
+    PC::ProvingBackend::setup_custom(&mut reader).unwrap()
+}
+
+pub fn read_srs_bytes<PC: PlonkishComponents>(bytes: &[u8]) -> PC::Param {
+    let mut reader = BufReader::new(bytes);
+    PC::ProvingBackend::setup_custom(&mut reader).unwrap()
 }
 
 // This method only for prover/verifier params
@@ -27,6 +33,7 @@ pub fn save_to_file<P: AsRef<Path>, T: Serialize>(
     Ok(())
 }
 
+// Read proving/verifying key from file
 pub fn load_from_file<P: AsRef<Path> + ?Sized, T: for<'de> Deserialize<'de>>(
     path: &P,
 ) -> Result<T, Box<dyn Error>> {
@@ -37,12 +44,8 @@ pub fn load_from_file<P: AsRef<Path> + ?Sized, T: for<'de> Deserialize<'de>>(
     Ok(deserialized_data)
 }
 
-/// Read a proving key from the file.
-pub fn read_pk<T: for<'de> Deserialize<'de>>(path: &Path) -> T {
-    load_from_file::<_, T>(path).unwrap()
-}
-
-/// Read a verification key from the file.
-pub fn read_vk<T: for<'de> Deserialize<'de>>(path: &Path) -> T {
-    load_from_file::<_, T>(path).unwrap()
+// Read proving/verifying key from bytes
+pub fn load_from_bytes<T: for<'de> Deserialize<'de>>(bytes: &[u8]) -> Result<T, Box<dyn Error>> {
+    let deserialized_data = bincode::deserialize(&bytes)?;
+    Ok(deserialized_data)
 }
