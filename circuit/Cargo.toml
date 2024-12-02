@@ -10,7 +10,6 @@ default = ["frontend-halo2"]
 frontend-halo2 = ["dep:halo2_proofs"]
 
 [dependencies]
-halo2curves = { git = "https://github.com/privacy-scaling-explorations/halo2curves", tag = "0.3.3" }
 plotters = {version = "0.3.6", optional = true}
 serde = { version = "1.0.204", features = ["derive"] }
 bincode = { workspace = true }

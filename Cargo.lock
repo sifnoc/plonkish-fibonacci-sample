@@ -452,7 +452,6 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "halo2_proofs",
- "halo2curves 0.3.3",
  "itertools 0.13.0",
  "once_cell",
  "plonkish_backend",
