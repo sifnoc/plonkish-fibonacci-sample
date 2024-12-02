@@ -27,7 +27,7 @@ Each implementation requires a SRS file, but Plonk, HyperPlonk, and Gemini use d
 For the Plonk backend, pre-generated SRS files are available for download [here - halo2-kzg-srs](https://github.com/han0110/halo2-kzg-srs?tab=readme-ov-file#download-the-converted-srs). Once you've downloaded the appropriate SRS file, you can use the following command to generate the proving and verifying keys:
 
 ```bash
-cargo run --release --bin gen-keys perpetual-powers-of-tau-raw-3
+cargo run --release --bin gen-plonk-keys perpetual-powers-of-tau-raw-3
 ```
 
 This will generate proving and verifying keys for the Fibonacci circuit using the Plonk implementation.
@@ -39,7 +39,7 @@ For HyperPlonk, the SRS file must be generated using the [hyperplonk_srs_generat
 Once you have the SRS file, you can then generate the proving and verifying keys:
 
 ```bash
-cargo run --release --bin gen-keys hyperplonk-srs-4
+cargo run --release --bin gen-hyperplonk-keys hyperplonk-srs-4
 ```
 
 ### 3. Gemini
@@ -48,6 +48,6 @@ For Gemini, the SRS file is generated using the [unihyperplonk_srs_generator](ht
 Next, generate the proving and verifying keys for Gemini:
 
 ```bash
-cargo run --release --bin gen-keys unihyperplonk-srs-4
+cargo run --release --bin gen-gemini-keys unihyperplonk-srs-4
 ```
 

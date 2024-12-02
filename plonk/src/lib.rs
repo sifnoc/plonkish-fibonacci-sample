@@ -1,4 +1,8 @@
-use std::{collections::HashMap, error::Error, fs::File};
+#[cfg(not(target_arch = "wasm32"))]
+use std::fs::File;
+#[cfg(target_arch = "wasm32")]
+use std::io::BufReader;
+use std::{collections::HashMap, error::Error};
 
 use fibonacci_circuit::{serialisation::*, FibonacciCircuit, FibonacciError, GenerateProofResult};
 use halo2_proofs::{
@@ -77,6 +81,35 @@ pub fn verify_halo2_proof(
     Ok(result)
 }
 
+fn prove_with_params(
+    params: ParamsKZG<Bn256>,
+    proving_key: ProvingKey<G1Affine>,
+    input: HashMap<String, Vec<String>>,
+) -> Result<GenerateProofResult, Box<dyn Error>> {
+    let circuit = FibonacciCircuit::<Fr>::default();
+
+    let circuit_inputs = deserialize_circuit_inputs(input)
+        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
+
+    let out = circuit_inputs
+        .get("out")
+        .ok_or_else(|| FibonacciError("Failed to get `out` value".to_string()))?
+        .get(0)
+        .ok_or_else(|| FibonacciError("Failed to get `out` value".to_string()))?
+        .clone();
+
+    // The public input followed fibonacci circuit
+    let public_input = vec![Fr::from(1), Fr::from(1), out];
+
+    let (proof, unserialized_inputs) =
+        generate_halo2_proof(&params, &proving_key, circuit, public_input).unwrap();
+    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(unserialized_inputs))
+        .map_err(|e| FibonacciError(format!("Serialization of Inputs failed: {}", e)))?;
+
+    Ok((proof, serialized_inputs))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn prove(
     srs_key_path: &str,
     proving_key_path: &str,
@@ -87,32 +120,48 @@ pub fn prove(
     let params = ParamsKZG::<Bn256>::read(&mut param_fs)
         .expect(&format!("Failed to read params from '{}'", srs_key_path));
 
-    let circuit = FibonacciCircuit::<Fr>::default();
+    let mut pk_fs = File::open(proving_key_path).expect("Couldn't load proving key");
+    let proving_key =
+        ProvingKey::read::<_, FibonacciCircuit<Fr>, false>(&mut pk_fs, RawBytes).unwrap();
 
-    let pk_fs = &mut File::open(proving_key_path).expect("Couldn't load proving key form");
-    let proving_key = ProvingKey::read::<_, FibonacciCircuit<Fr>, false>(pk_fs, RawBytes).unwrap();
-
-    let circuit_inputs = deserialize_circuit_inputs(input)
-        .map_err(|e| FibonacciError(format!("Failed to deserialize circuit inputs: {}", e)))?;
-
-    let out = circuit_inputs
-        .get("out")
-        .ok_or(FibonacciError("Failed to get `out` value".to_string()))?
-        .get(0)
-        .ok_or(FibonacciError("Failed to get `out` value".to_string()))?
-        .clone();
-
-    // The public input followed fibonacci circuit
-    let public_input = vec![Fr::from(1), Fr::from(1), out];
-
-    let (proof, unserialized_inputs) =
-        generate_halo2_proof(&params, &proving_key, circuit, public_input).unwrap();
-    let serialized_inputs = bincode::serialize(&InputsSerialisationWrapper(unserialized_inputs))
-        .map_err(|e| FibonacciError(format!("Serialisation of Inputs failed: {}", e)))?;
-
-    Ok((proof, serialized_inputs))
+    prove_with_params(params, proving_key, input)
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn prove(
+    srs_key: &[u8],
+    proving_key: &[u8],
+    input: HashMap<String, Vec<String>>,
+) -> Result<GenerateProofResult, Box<dyn Error>> {
+    let mut params_reader = BufReader::new(srs_key);
+    let params =
+        ParamsKZG::<Bn256>::read(&mut params_reader).expect("Failed to read params from bytes");
+
+    let mut pk_reader = BufReader::new(proving_key);
+    let proving_key =
+        ProvingKey::read::<_, FibonacciCircuit<Fr>, false>(&mut pk_reader, RawBytes).unwrap();
+
+    prove_with_params(params, proving_key, input)
+}
+
+fn verify_with_params(
+    params: ParamsKZG<Bn256>,
+    verifying_key: VerifyingKey<G1Affine>,
+    proof: Vec<u8>,
+    public_inputs: Vec<u8>,
+) -> Result<bool, Box<dyn Error>> {
+    let deserialized_inputs: Vec<Fr> =
+        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
+            .map_err(|e| FibonacciError(e.to_string()))?
+            .0;
+
+    let result = verify_halo2_proof(&params, &verifying_key, proof, deserialized_inputs)
+        .map_err(|e| FibonacciError(format!("Verification failed: {}", e)))?;
+
+    Ok(result)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn verify(
     srs_key_path: &str,
     verifying_key_path: &str,
@@ -124,18 +173,28 @@ pub fn verify(
     let params = ParamsKZG::<Bn256>::read(&mut param_fs)
         .expect(&format!("Failed to read params from '{}'", srs_key_path));
 
-    let vk_fs = &mut File::open(verifying_key_path).expect("Couldn't load proving key form");
+    let mut vk_fs = File::open(verifying_key_path).expect("Couldn't load verifying key");
     let verifying_key =
-        VerifyingKey::read::<_, FibonacciCircuit<Fr>, false>(vk_fs, RawBytes).unwrap();
+        VerifyingKey::read::<_, FibonacciCircuit<Fr>, false>(&mut vk_fs, RawBytes).unwrap();
 
-    let deserialized_inputs: Vec<Fr> =
-        bincode::deserialize::<InputsSerialisationWrapper>(&public_inputs)
-            .map_err(|e| FibonacciError(e.to_string()))?
-            .0;
+    verify_with_params(params, verifying_key, proof, public_inputs)
+}
 
-    let result = verify_halo2_proof(&params, &verifying_key, proof, deserialized_inputs).unwrap();
+#[cfg(target_arch = "wasm32")]
+pub fn verify(
+    srs_key: &[u8],
+    verifying_key: &[u8],
+    proof: Vec<u8>,
+    public_inputs: Vec<u8>,
+) -> Result<bool, Box<dyn Error>> {
+    let mut params_reader = BufReader::new(srs_key);
+    let params = ParamsKZG::<Bn256>::read(&mut params_reader).expect("Failed to read params");
 
-    Ok(result)
+    let mut vk_reader = BufReader::new(verifying_key);
+    let verifying_key =
+        VerifyingKey::read::<_, FibonacciCircuit<Fr>, false>(&mut vk_reader, RawBytes).unwrap();
+
+    verify_with_params(params, verifying_key, proof, public_inputs)
 }
 
 #[cfg(test)]
